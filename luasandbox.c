@@ -18,9 +18,7 @@
 #include "php_luasandbox.h"
 #include "luasandbox_timer.h"
 #include "zend_smart_str.h"
-#include "ext/standard/php_string.h"
 #include "luasandbox_version.h"
-#include "luasandbox_compat.h"
 
 // Compatability typedefs and defines to hide some PHP5/PHP7 differences
 typedef zend_object* object_constructor_ret_t;
@@ -376,10 +374,14 @@ static object_constructor_ret_t luasandbox_new(zend_class_entry *ce)
 	php_luasandbox_obj * sandbox;
 
 	// Create the internal object
+#if PHP_VERSION_ID < 70300
+	sandbox = (php_luasandbox_obj*)ecalloc(1, sizeof(php_luasandbox_obj) + zend_object_properties_size(ce));
+#else
 	sandbox = (php_luasandbox_obj*)zend_object_alloc(sizeof(php_luasandbox_obj), ce);
-	zend_object_std_init(&sandbox->std, ce);
+#endif
+
+	zend_object_std_init(&sandbox->std, ce TSRMLS_CC);
 	object_properties_init(&sandbox->std, ce);
-	sandbox->std.handlers = &luasandbox_object_handlers;
 	sandbox->alloc.memory_limit = (size_t)-1;
 	sandbox->allow_pause = 1;
 
@@ -474,9 +476,15 @@ static object_constructor_ret_t luasandboxfunction_new(zend_class_entry *ce)
 	php_luasandboxfunction_obj * intern;
 
 	// Create the internal object
+#if PHP_VERSION_ID < 70300
+	intern = (php_luasandboxfunction_obj*)ecalloc(1, sizeof(php_luasandboxfunction_obj) + zend_object_properties_size(ce));
+#else
 	intern = (php_luasandboxfunction_obj*)zend_object_alloc(sizeof(php_luasandboxfunction_obj), ce);
-	zend_object_std_init(&intern->std, ce);
+#endif
+
+	zend_object_std_init(&intern->std, ce TSRMLS_CC);
 	object_properties_init(&intern->std, ce);
+
 	intern->std.handlers = &luasandboxfunction_object_handlers;
 	return &intern->std;
 }
@@ -572,7 +580,8 @@ struct luasandbox_load_helper_params {
 static int luasandbox_load_helper_protected(lua_State* L) {
 	struct luasandbox_load_helper_params *p = (struct luasandbox_load_helper_params *)lua_touserdata(L, 1);
 	int status;
-	zval *return_value = p->return_value; // will be used by RETVAL_FALSE.
+	zval *return_value = p->return_value;
+
 	// Parse the string into a function on the stack
 	status = luaL_loadbuffer(L, p->code, p->codeLength, p->chunkName);
 
@@ -617,6 +626,8 @@ static int luasandbox_load(
 	was_paused = luasandbox_timer_is_paused(&p.sandbox->timer);
 	luasandbox_timer_unpause(&p.sandbox->timer);
 
+	p.zthis = getThis();
+	p.return_value = return_value;
 	status = lua_cpcall(L, luasandbox_load_helper_protected, &p);
 
 	// If the timers were paused before, re-pause them now
@@ -1096,6 +1107,7 @@ PHP_METHOD(LuaSandbox, getProfilerFunctionReport)
 			scale = 100. / sandbox->timer.total_count;
 		}
 	}
+
 	zend_string *key;
 	zval *count, v;
 	ZVAL_NULL(&v);
@@ -1169,6 +1181,7 @@ struct LuaSandbox_callFunction_params {
 	php_luasandbox_obj * sandbox;
 	zval *zthis;
 	zval *return_value;
+
 	char *name;
 	str_param_len_t nameLength;
 	int numArgs;
@@ -1375,6 +1388,7 @@ struct LuaSandboxFunction_call_params {
 static int LuaSandboxFunction_call_protected(lua_State* L) {
 	struct LuaSandboxFunction_call_params *p = (struct LuaSandboxFunction_call_params *)lua_touserdata(L, 1);
 	zval *return_value = p->return_value;
+
 	luasandbox_function_push(p->func, L);
 	luasandbox_call_helper(L, LUASANDBOXFUNCTION_GET_SANDBOX_ZVALPTR(p->func),
 			p->sandbox, p->args, p->numArgs, return_value);
@@ -1748,8 +1762,7 @@ int luasandbox_call_php(lua_State * L)
 
 	luasandbox_enter_php(L, intern);
 
-	zval * callback_p;
-	callback_p = (zval*)lua_touserdata(L, lua_upvalueindex(1));
+	zval * callback_p = (zval*)lua_touserdata(L, lua_upvalueindex(1));
 	zend_fcall_info fci;
 	zend_fcall_info_cache fcc;
 	char *is_callable_error = NULL;
@@ -1778,6 +1791,7 @@ int luasandbox_call_php(lua_State * L)
 
 	int args_failed = 0;
 	star_param_t args;
+
 	// Make an array of zvals to hold the arguments
 	args = (zval *)ecalloc(top, sizeof(zval));
 	for (i = 0; i < top; i++ ) {

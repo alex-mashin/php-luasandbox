@@ -532,6 +532,7 @@ static int luasandbox_lua_pair_to_array(HashTable *ht, lua_State *L,
 		return 0;
 	}
 	zend_hash_str_update(ht, str, length, valp);
+
 	return 1;
 
 add_int_key:
@@ -548,6 +549,7 @@ add_int_key:
 		return 0;
 	}
 	zend_hash_index_update(ht, zn, valp);
+
 	return 1;
 }
 /* }}} */
@@ -716,6 +718,7 @@ void luasandbox_push_structured_trace(lua_State * L, int level)
 void luasandbox_throw_runtimeerror(lua_State * L, zval * sandbox_zval, const char *message)
 {
 	zval *zex, *ztrace;
+
 	zval zvex, zvtrace;
 	zex = &zvex;
 	ztrace = &zvtrace;
@@ -748,10 +751,9 @@ static inline int luasandbox_protect_recursion(zval * z, HashTable ** recursionG
 		*allocated = 1;
 		ALLOC_HASHTABLE(*recursionGuard);
 		zend_hash_init(*recursionGuard, 1, NULL, NULL, 0);
-	} else if (
-		zend_hash_str_exists(*recursionGuard, (char*)&z, sizeof(void*))
-	) {
-		php_error_docref(NULL, E_WARNING, "Cannot pass circular reference to Lua");
+	} else if (zend_hash_str_exists(*recursionGuard, (char*)&z, sizeof(void*))) {
+		TSRMLS_FETCH();
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot pass circular reference to Lua");
 		return 0;
 	}
 

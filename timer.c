@@ -238,6 +238,7 @@ static char * luasandbox_timer_get_cfunction_name(lua_State *L)
 	}
 
 	lua_getupvalue(L, -1, 1);
+
 	zval * callback_p = (zval*)lua_touserdata(L, -1);
 	if (!callback_p) {
 		return NULL;
