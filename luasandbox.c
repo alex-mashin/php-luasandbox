@@ -19,6 +19,7 @@
 #include "luasandbox_timer.h"
 #include "zend_smart_str.h"
 #include "luasandbox_version.h"
+#include "luasandbox_compat.h"
 
 // Compatability typedefs and defines to hide some PHP5/PHP7 differences
 typedef zend_object* object_constructor_ret_t;
@@ -36,6 +37,7 @@ typedef zval* star_param_t;
 
 static PHP_GINIT_FUNCTION(luasandbox);
 static PHP_GSHUTDOWN_FUNCTION(luasandbox);
+static int luasandbox_post_deactivate();
 static object_constructor_ret_t luasandbox_new(zend_class_entry *ce);
 static lua_State * luasandbox_newstate(php_luasandbox_obj * intern);
 static void luasandbox_free_storage(zend_object *object);
@@ -341,8 +343,6 @@ static PHP_GSHUTDOWN_FUNCTION(luasandbox)
 PHP_MSHUTDOWN_FUNCTION(luasandbox)
 {
 	luasandbox_timer_mshutdown();
-	zend_string_release( LUASANDBOX_G(ini_script) );
-	UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
 /* }}} */
@@ -352,6 +352,13 @@ PHP_RSHUTDOWN_FUNCTION(luasandbox)
 {
 	return SUCCESS;
 }
+/* }}} */
+
+static int luasandbox_post_deactivate() /* {{{ */
+{
+	return SUCCESS;
+}
+/* }}} */
 
 /* {{{ PHP_MINFO_FUNCTION
  */
@@ -380,7 +387,7 @@ static object_constructor_ret_t luasandbox_new(zend_class_entry *ce)
 	sandbox = (php_luasandbox_obj*)zend_object_alloc(sizeof(php_luasandbox_obj), ce);
 #endif
 
-	zend_object_std_init(&sandbox->std, ce TSRMLS_CC);
+	zend_object_std_init(&sandbox->std, ce);
 	object_properties_init(&sandbox->std, ce);
 	sandbox->alloc.memory_limit = (size_t)-1;
 	sandbox->allow_pause = 1;
@@ -463,6 +470,7 @@ static void luasandbox_free_storage(zend_object *object)
 		sandbox->state = NULL;
 	}
 	zend_object_std_dtor(&sandbox->std);
+
 	LUASANDBOX_G(active_count)--;
 }
 /* }}} */
@@ -482,7 +490,7 @@ static object_constructor_ret_t luasandboxfunction_new(zend_class_entry *ce)
 	intern = (php_luasandboxfunction_obj*)zend_object_alloc(sizeof(php_luasandboxfunction_obj), ce);
 #endif
 
-	zend_object_std_init(&intern->std, ce TSRMLS_CC);
+	zend_object_std_init(&intern->std, ce);
 	object_properties_init(&intern->std, ce);
 
 	intern->std.handlers = &luasandboxfunction_object_handlers;
@@ -606,21 +614,50 @@ static int luasandbox_load_helper_protected(lua_State* L) {
 	return 0;
 }
 
-static int luasandbox_load(
-	php_luasandbox_obj* sandbox, zval* zthis, zval* return_value, char* code, str_param_len_t codeLength, char* name, str_param_len_t nameLength
-) {
+static void luasandbox_load_helper(int binary, INTERNAL_FUNCTION_PARAMETERS)
+{
+	struct luasandbox_load_helper_params p;
+	str_param_len_t chunkNameLength;
+	lua_State * L;
+	int have_mark;
 	int was_paused;
 	int status;
-	lua_State * L = sandbox->state;
+
+	p.sandbox = GET_LUASANDBOX_OBJ(getThis());
+	L = p.sandbox->state;
 	CHECK_VALID_STATE(L);
 
-	struct luasandbox_load_helper_params p;
-	p.sandbox = sandbox;
-	p.zthis = zthis;
-	p.return_value = return_value;
-	p.code = code;
-	p.codeLength = codeLength;
-	p.chunkName = name;
+	p.chunkName = NULL;
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s|s",
+				&p.code, &p.codeLength, &p.chunkName, &chunkNameLength) == FAILURE) {
+		RETURN_FALSE;
+	}
+
+	if (p.chunkName == NULL) {
+		p.chunkName = "";
+	} else {
+		// Check chunkName for nulls
+		if (strlen(p.chunkName) != chunkNameLength) {
+			php_error_docref(NULL, E_WARNING,
+				"chunk name may not contain null characters");
+			RETURN_FALSE;
+		}
+	}
+
+	// Check to see if the code is binary (with precompiled data mark) if this
+	// was called as loadBinary(), and plain code (without mark) if this was
+	// called as loadString()
+	have_mark = (php_memnstr(p.code, LUA_SIGNATURE,
+		sizeof(LUA_SIGNATURE) - 1, p.code + p.codeLength) != NULL);
+	if (binary && !have_mark) {
+		php_error_docref(NULL, E_WARNING,
+			"the string does not appear to be a valid binary chunk");
+		RETURN_FALSE;
+	} else if (!binary && have_mark) {
+		php_error_docref(NULL, E_WARNING,
+			"cannot load code with a Lua binary chunk marker escape sequence in it");
+		RETURN_FALSE;
+	}
 
 	// Make sure this is counted against the Lua usage time limit
 	was_paused = luasandbox_timer_is_paused(&p.sandbox->timer);
@@ -637,51 +674,7 @@ static int luasandbox_load(
 
 	// Handle any error from Lua
 	if (status != 0) {
-		luasandbox_handle_error(sandbox, status);
-	}
-
-	return status;
-}
-
-static void luasandbox_load_helper(int binary, INTERNAL_FUNCTION_PARAMETERS) {
-	int status;
-	php_luasandbox_obj * sandbox = GET_LUASANDBOX_OBJ(getThis());
-	int have_mark;
-	char * code;
-	str_param_len_t codeLength;
-	char * name = NULL;
-	str_param_len_t nameLength;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s|s", &code, &codeLength, &name, &nameLength) == FAILURE) {
-		RETURN_FALSE;
-	}
-
-	if (name == NULL) {
-		name = "";
-	} else {
-		// Check name for nulls
-		if (strlen(name) != nameLength) {
-			php_error_docref(NULL, E_WARNING, "chunk name may not contain null characters");
-			RETURN_FALSE;
-		}
-	}
-
-	// Check to see if the code is binary (with precompiled data mark) if this
-	// was called as loadBinary(), and plain code (without mark) if this was
-	// called as loadString()
-	have_mark = (php_memnstr(code, LUA_SIGNATURE, sizeof(LUA_SIGNATURE) - 1, code + codeLength) != NULL);
-	if (binary && !have_mark) {
-		php_error_docref(NULL, E_WARNING, "the string does not appear to be a valid binary chunk");
-		RETURN_FALSE;
-	} else if (!binary && have_mark) {
-		php_error_docref(NULL, E_WARNING, "cannot load code with a Lua binary chunk marker escape sequence in it");
-		RETURN_FALSE;
-	}
-
-	status = luasandbox_load(sandbox, getThis(), return_value, code, codeLength, name, nameLength);
-
-	// Handle any error from Lua
-	if (status != 0) {
+		luasandbox_handle_error(p.sandbox, status);
 		RETURN_FALSE;
 	}
 }
@@ -741,6 +734,7 @@ PHP_METHOD(LuaSandbox, loadBinary)
 static int luasandbox_safe_trace_to_zval(lua_State* L) {
 	zval *zsandbox = (zval *)lua_touserdata(L, 2);
 	zval *ztrace = (zval *)lua_touserdata(L, 3);
+
 	luasandbox_lua_to_zval(ztrace, L, 1, zsandbox, NULL);
 	return 0;
 }
@@ -1042,7 +1036,6 @@ static int luasandbox_sort_profile(luasandbox_sortable a, luasandbox_sortable b)
 {
 	size_t value_a = (size_t)Z_LVAL(luasandbox_to_bucket(a)->val);
 	size_t value_b = (size_t)Z_LVAL(luasandbox_to_bucket(b)->val);
-
 	if (value_a < value_b) {
 		return 1;
 	} else if (value_a > value_b) {
@@ -1857,6 +1850,7 @@ int luasandbox_call_php(lua_State * L)
 		ZVAL_OBJ(&exception, EG(exception));
 		zend_class_entry * ce = Z_OBJCE(exception);
 		zval * zmsg = luasandbox_read_property(ce, &exception, "message", sizeof("message")-1, 1, &rv);
+
 		if (zmsg && Z_TYPE_P(zmsg) == IS_STRING) {
 			lua_pushlstring(L, Z_STRVAL_P(zmsg), Z_STRLEN_P(zmsg));
 		} else {

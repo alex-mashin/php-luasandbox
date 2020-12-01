@@ -752,8 +752,7 @@ static inline int luasandbox_protect_recursion(zval * z, HashTable ** recursionG
 		ALLOC_HASHTABLE(*recursionGuard);
 		zend_hash_init(*recursionGuard, 1, NULL, NULL, 0);
 	} else if (zend_hash_str_exists(*recursionGuard, (char*)&z, sizeof(void*))) {
-		TSRMLS_FETCH();
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot pass circular reference to Lua");
+		php_error_docref(NULL, E_WARNING, "Cannot pass circular reference to Lua");
 		return 0;
 	}
 
