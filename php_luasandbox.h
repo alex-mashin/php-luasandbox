@@ -8,7 +8,6 @@
 #include "luasandbox_types.h"
 #include "luasandbox_timer.h"
 
-#define PHP_LUASANDBOX_INI_ADDITIONAL_LIBRARIES "luasandbox.additional_libraries"
 #define PHP_LUASANDBOX_INI_INI_SCRIPT "luasandbox.ini_script"
 #define PHP_LUASANDBOX_INI_INI_SCRIPT_DEFAULT "\n\
 local function censor (filtered, filter)\n\
@@ -81,7 +80,6 @@ PHP_METHOD(LuaSandbox, getProfilerFunctionReport);
 PHP_METHOD(LuaSandbox, callFunction);
 PHP_METHOD(LuaSandbox, wrapPhpFunction);
 PHP_METHOD(LuaSandbox, registerLibrary);
-PHP_METHOD(LuaSandbox, additionalLibraries);
 PHP_METHOD(LuaSandboxFunction, __construct);
 PHP_METHOD(LuaSandboxFunction, call);
 PHP_METHOD(LuaSandboxFunction, dump);
