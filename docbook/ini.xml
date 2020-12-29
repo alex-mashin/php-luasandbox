@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- $Revision$ -->
-<section xml:id="apcu.configuration" xmlns="http://docbook.org/ns/docbook">
+<section xml:id="luasandbox.configuration" xmlns="http://docbook.org/ns/docbook">
  &reftitle.runtime;
  &extension.runtime;
 	 <para>
@@ -22,13 +22,31 @@
 					<entry><link linkend="ini.luasandbox.additional_libraries">luasandbox.additional_libraries</link></entry>
 					<entry>""</entry>
 					<entry>PHP_INI_SYSTEM</entry>
-					<entry></entry>
+					<entry>Since 3.1.0-traditio</entry>
 				</row>
 				<row>
-					<entry><link linkend="ini.luasandbox.allowed_globals">luasandbox.allowed_globals</link></entry>
-						<entry>"assert,error,getfenv,getmetatable,ipairs,next,pairs,rawequal,rawget,rawset,select,setfenv,setmetatable,tonumber,type,unpack,_G,_VERSION,string,table,math,os,debug"</entry>
+					<entry><link linkend="ini.luasandbox.ini_script">luasandbox.ini_script</link></entry>
+						<entry>"local function censor (filtered, filter)
+	local all_allowed = filter['*']
+	for field in pairs (filtered) do
+		local allowed = filter [field]
+		if not (allowed or all_allowed and allowed ~= false) then
+			filtered [field] = nil
+		elseif type (allowed) == 'table' then
+			censor (filtered [field], allowed)
+		end
+	end
+end
+censor (_G, {
+	_G = true, _VERSION = true,	print = true, assert = true, error = true, getfenv = true, setfenv = true, pcall = true, xpcall = true,
+	ipairs = true, next = true, pairs = true, select = true, unpack = true,
+	getmetatable = true, setmetatable = true, rawequal = true, rawget = true , rawset = true,
+	type = true, tonumber = true, tostring = true,	table = true, math = true,
+	os = {date = true, difftime = true, time = true, clock = true}, debug = {traceback = true}, string = {['*'] = true, dump = false}
+})"
+"</entry>
 					<entry>PHP_INI_SYSTEM</entry>
-					<entry></entry>
+					<entry>Since 3.1.0-traditio</entry>
 				</row>
 			</tbody>
 		</tgroup>

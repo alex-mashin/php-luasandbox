@@ -34,28 +34,7 @@ static int luasandbox_base_pairs(lua_State *L);
 static int luasandbox_base_ipairs(lua_State *L);
 #endif
 
-char * luasandbox_allowed_os_members[] = {
-	"date",
-	"difftime",
-	"time",
-	NULL
-};
-
-char * luasandbox_allowed_debug_members[] = {
-	"traceback",
-	NULL
-};
-
-
-
 ZEND_EXTERN_MODULE_GLOBALS(luasandbox);
-
-/** {{{ global_allowed
- */
-static zend_bool global_allowed( zend_string * global) {
-	return zend_hash_exists( &LUASANDBOX_G(allowed_globals), global );
-}
-/* }}} */
 
 /** {{{  luasandbox_lib_register
  */
@@ -77,36 +56,17 @@ void luasandbox_lib_register(lua_State * L)
 	lua_pushcfunction(L, luasandbox_open_string);
 	lua_call(L, 0, 0);
 
-	// Filter the os library
-	lua_getglobal(L, "os");
-	luasandbox_lib_filter_table(L, luasandbox_allowed_os_members);
-	lua_setglobal(L, "os");
-
-	// Filter the debug library
-	lua_getglobal(L, "debug");
-	luasandbox_lib_filter_table(L, luasandbox_allowed_debug_members);
-	lua_setglobal(L, "debug");
-
-	// Remove any globals that aren't in a whitelist. This is mostly to remove
-	// unsafe functions from the base library.
-	lua_pushnil(L);
-	while (lua_next(L, LUA_GLOBALSINDEX) != 0) {
-		const char * key;
-		size_t key_len;
-		lua_pop(L, 1);
-		if (lua_type(L, -1) != LUA_TSTRING) {
-			continue;
+	// Load additional libraries:
+	zend_string * lib_z;
+	zval * loader_z;
+	ZEND_HASH_FOREACH_STR_KEY_VAL(&LUASANDBOX_G(library_loaders), lib_z, loader_z)
+		lua_CFunction loader_ptr = Z_PTR_P(loader_z);
+		if ( loader_ptr ) {
+			lua_pushcfunction( L, loader_ptr );
+			lua_call( L, 0, 1 );
+			lua_setglobal( L, ZSTR_VAL(lib_z) );
 		}
-		key = lua_tolstring(L, -1, &key_len);
-		zend_string * global;
-		global = zend_string_init( key, key_len, 0 );
-		if ( !global_allowed( global ) ) {
-			// Not allowed, delete it
-			lua_pushnil(L);
-			lua_setglobal(L, key);
-		}
-		zend_string_release( global );
-	}
+	ZEND_HASH_FOREACH_END();
 
 	// Install our own versions of tostring, pcall, xpcall
 	lua_pushcfunction(L, luasandbox_base_tostring);

@@ -8,8 +8,27 @@
 #include "luasandbox_types.h"
 #include "luasandbox_timer.h"
 
-#define PHP_LUASANDBOX_INI_ALLOWED_GLOBALS "luasandbox.allowed_globals"
 #define PHP_LUASANDBOX_INI_ADDITIONAL_LIBRARIES "luasandbox.additional_libraries"
+#define PHP_LUASANDBOX_INI_INI_SCRIPT "luasandbox.ini_script"
+#define PHP_LUASANDBOX_INI_INI_SCRIPT_DEFAULT "\n\
+local function censor (filtered, filter)\n\
+	local all_allowed = filter['*']\n\
+	for field in pairs (filtered) do\n\
+		local allowed = filter [field]\n\
+		if not (allowed or all_allowed and allowed ~= false) then\n\
+			filtered [field] = nil\n\
+		elseif type (allowed) == 'table' then\n\
+			censor (filtered [field], allowed)\n\
+		end\n\
+	end\n\
+end\n\
+censor (_G, {\n\
+	_G = true, _VERSION = true,	print = true, assert = true, error = true, getfenv = true, setfenv = true, pcall = true, xpcall = true,\n\
+	ipairs = true, next = true, pairs = true, select = true, unpack = true,\n\
+	getmetatable = true, setmetatable = true, rawequal = true, rawget = true , rawset = true,\n\
+	type = true, tonumber = true, tostring = true,	table = true, math = true,\n\
+	os = {date = true, difftime = true, time = true, clock = true}, debug = {traceback = true}, string = {['*'] = true, dump = false}\n\
+})"
 
 /* alloc.c */
 lua_State * luasandbox_alloc_new_state(php_luasandbox_alloc * alloc, php_luasandbox_obj * sandbox);
@@ -62,7 +81,6 @@ PHP_METHOD(LuaSandbox, getProfilerFunctionReport);
 PHP_METHOD(LuaSandbox, callFunction);
 PHP_METHOD(LuaSandbox, wrapPhpFunction);
 PHP_METHOD(LuaSandbox, registerLibrary);
-PHP_METHOD(LuaSandbox, allowedGlobals);
 PHP_METHOD(LuaSandbox, additionalLibraries);
 PHP_METHOD(LuaSandboxFunction, __construct);
 PHP_METHOD(LuaSandboxFunction, call);
