@@ -6,6 +6,5 @@ This is a fork created for https://traditio.wiki.
 
 What's new:
  - Added luasandbox.ini_script to php.ini to define a Lua script that runs every time a Lua state is created. In that script available globals can be filtered
- - Added luasandbox.additional_libraries to php.ini to enable additional Lua libraries and LuaSandbox::additionalLibraries() method
 
 For more details see <https://www.mediawiki.org/wiki/LuaSandbox>.

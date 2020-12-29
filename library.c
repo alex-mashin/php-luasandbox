@@ -51,22 +51,12 @@ void luasandbox_lib_register(lua_State * L)
 	lua_call(L, 0, 0);
 	lua_pushcfunction(L, luaopen_os);
 	lua_call(L, 0, 0);
-
+	lua_pushcfunction(L, luaopen_package);
+	lua_call(L, 0, 0);
+	
 	// Install our own string library
 	lua_pushcfunction(L, luasandbox_open_string);
 	lua_call(L, 0, 0);
-
-	// Load additional libraries:
-	zend_string * lib_z;
-	zval * loader_z;
-	ZEND_HASH_FOREACH_STR_KEY_VAL(&LUASANDBOX_G(library_loaders), lib_z, loader_z)
-		lua_CFunction loader_ptr = Z_PTR_P(loader_z);
-		if ( loader_ptr ) {
-			lua_pushcfunction( L, loader_ptr );
-			lua_call( L, 0, 1 );
-			lua_setglobal( L, ZSTR_VAL(lib_z) );
-		}
-	ZEND_HASH_FOREACH_END();
 
 	// Install our own versions of tostring, pcall, xpcall
 	lua_pushcfunction(L, luasandbox_base_tostring);
@@ -75,12 +65,6 @@ void luasandbox_lib_register(lua_State * L)
 	lua_setglobal(L, "pcall");
 	lua_pushcfunction(L, luasandbox_base_xpcall);
 	lua_setglobal(L, "xpcall");
-
-	// Remove string.dump: may expose private data
-	lua_getglobal(L, "string");
-	lua_pushnil(L);
-	lua_setfield(L, -2, "dump");
-	lua_pop(L, 1);
 
 	// Install our own versions of math.random and math.randomseed
 	lua_getglobal(L, "math");

@@ -9,7 +9,6 @@
 
  <function name='luasandbox' from='PECL luasandbox &gt;= 1.0.0'/>
  <function name='luasandbox::getversioninfo' from='PECL luasandbox &gt;= 1.6.0'/>
- <function name='luasandbox::additionalLibraries' from='PECL luasandbox &gt;= 3.1.0'/> 
  <function name='luasandbox::loadstring' from='PECL luasandbox &gt;= 1.0.0'/>
  <function name='luasandbox::loadbinary' from='PECL luasandbox &gt;= 1.0.0'/>
  <function name='luasandbox::setmemorylimit' from='PECL luasandbox &gt;= 1.0.0'/>

@@ -59,10 +59,6 @@ typedef struct {
 #endif /*CLOCK_REALTIME*/
 
 ZEND_BEGIN_MODULE_GLOBALS(luasandbox)
-	/* Lua C libraries loaders. */
-	HashTable library_loaders;
-	/* A table of additional Lua C libraries. */
-	HashTable additional_libraries;
 	/* Initialisation Lua code. */
 	zend_string * ini_script;
 	long active_count;

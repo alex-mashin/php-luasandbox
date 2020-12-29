@@ -21,7 +21,6 @@
   </stability>
   <license>MIT</license>
   <notes>
-    - Add luasandbox.additional_libraries to php.ini and LuaSandbox::additionalLibraries() method
     - Add luasandbox.ini_script to php.ini
   </notes>
   <contents>
@@ -142,7 +141,6 @@
         <api>3.1.0</api>
       </version>
       <notes>
-	    - Add luasandbox.additional_libraries to php.ini and LuaSandbox::additionalLibraries() method
 		- Add luasandbox.ini_script to php.ini
       </notes>
     </release>
