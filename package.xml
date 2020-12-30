@@ -104,9 +104,6 @@
       <file name="CREDITS" role="doc"/>
       <file name="data_conversion.c" role="src"/>
       <file name="Doxyfile" role="src"/>
-      <file name="ext_luasandbox.php" role="src"/>
-      <file name="FindLua51cpp.cmake" role="src"/>
-      <file name="hhvm-test.sh" role="src"/>
       <file name="library.c" role="src"/>
       <file name="luasandbox.c" role="src"/>
       <file name="luasandbox.ini" role="src"/>
