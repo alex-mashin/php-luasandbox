@@ -7,7 +7,7 @@
 	 	luasandbox for traditio.wiki offers the following configuration settings:
 	 </para>
 	<table>
-		<title>APCu configuration options</title>
+		<title>luasandbox configuration options</title>
 		<tgroup cols="4">
 			<thead>
 				<row>
