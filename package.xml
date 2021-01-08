@@ -98,7 +98,6 @@
         <file name="xpcall.phpt" role="test"/>
       </dir>
       <file name="alloc.c" role="src"/>
-      <file name="config.cmake" role="src"/>
       <file name="config.m4" role="src"/>
       <file name="COPYING" role="doc"/>
       <file name="CREDITS" role="doc"/>
