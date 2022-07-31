@@ -283,6 +283,8 @@ PHP_MINIT_FUNCTION(luasandbox)
 		"MEM", sizeof("MEM")-1, LUA_ERRMEM);
 	zend_declare_class_constant_long(luasandboxerror_ce,
 		"ERR", sizeof("ERR")-1, LUA_ERRERR);
+	zend_declare_property_null(luasandboxerror_ce,
+		"luaTrace", sizeof("luaTrace")-1, ZEND_ACC_PUBLIC);
 
 	INIT_CLASS_ENTRY(ce, "LuaSandboxRuntimeError", luasandbox_empty_methods);
 	luasandboxruntimeerror_ce = compat_zend_register_internal_class_ex(&ce, luasandboxerror_ce);
@@ -341,7 +343,7 @@ static PHP_GSHUTDOWN_FUNCTION(luasandbox)
 PHP_MSHUTDOWN_FUNCTION(luasandbox)
 {
 	luasandbox_timer_mshutdown();
-	zend_string_release( LUASANDBOX_G(ini_script) );	
+	zend_string_release( LUASANDBOX_G(ini_script) );
 	UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
@@ -433,7 +435,7 @@ static lua_State * luasandbox_newstate(php_luasandbox_obj * intern)
 		}
 	}
 	if (status == 0) {
-		LUASANDBOX_G(active_count)++;		
+		LUASANDBOX_G(active_count)++;
 	} else {
 		luasandbox_panic(L);
 	}
@@ -588,7 +590,7 @@ static int luasandbox_load_helper_protected(lua_State* L) {
 
 	// Balance the stack
 	lua_pop(L, 1);
-	
+
 	return 0;
 }
 
@@ -599,8 +601,8 @@ static int luasandbox_load(
 	int status;
 	lua_State * L = sandbox->state;
 	CHECK_VALID_STATE(L);
-	
-	struct luasandbox_load_helper_params p;	
+
+	struct luasandbox_load_helper_params p;
 	p.sandbox = sandbox;
 	p.zthis = zthis;
 	p.return_value = return_value;
@@ -624,7 +626,7 @@ static int luasandbox_load(
 		luasandbox_handle_error(sandbox, status);
 	}
 
-	return status;	
+	return status;
 }
 
 static void luasandbox_load_helper(int binary, INTERNAL_FUNCTION_PARAMETERS) {
