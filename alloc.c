@@ -96,6 +96,8 @@ static void *luasandbox_php_alloc(void *ud, void *ptr, size_t osize, size_t nsiz
 	}
 	luasandbox_update_gc_pause(obj->state, &obj->alloc);
 
+	luasandbox_update_gc_pause(obj->state, &obj->alloc);
+
 	if (nsize == 0) {
 		if (ptr) {
 			efree(ptr);
