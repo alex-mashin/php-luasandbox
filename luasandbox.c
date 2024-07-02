@@ -388,6 +388,7 @@ static object_constructor_ret_t luasandbox_new(zend_class_entry *ce)
 
 	// Initialise the timer
 	luasandbox_timer_create(&sandbox->timer, sandbox);
+	LUASANDBOX_G(active_count)++;
 
 	return &sandbox->std;
 }
@@ -409,6 +410,9 @@ static lua_State * luasandbox_newstate(php_luasandbox_obj * intern)
 	}
 
 	lua_atpanic(L, luasandbox_panic);
+	
+	// Increase the GC step size (T349462)
+	lua_gc(L, LUA_GCSETSTEPMUL, 2000);
 
 	// Register the standard library
 	luasandbox_lib_register(L);
@@ -1074,7 +1078,11 @@ PHP_METHOD(LuaSandbox, getProfilerFunctionReport)
 	}
 
 	// Sort the input array in descending order of time usage
+#if PHP_VERSION_ID < 80000
+	zend_hash_sort(counts, (compare_func_t)luasandbox_sort_profile, 0);
+#else
 	zend_hash_sort(counts, luasandbox_sort_profile, 0);
+#endif
 
 	array_init_size(return_value, zend_hash_num_elements(counts));
 
