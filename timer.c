@@ -238,13 +238,12 @@ static char * luasandbox_timer_get_cfunction_name(lua_State *L)
 	}
 
 	lua_getupvalue(L, -1, 1);
-
 	zval * callback_p = (zval*)lua_touserdata(L, -1);
 	if (!callback_p) {
 		return NULL;
 	}
 	zend_string * callback_name;
-	zend_bool ok = zend_is_callable(callback_p, 0, &callback_name);
+	zend_bool ok = zend_is_callable(callback_p, IS_CALLABLE_CHECK_SILENT, &callback_name);
 	if (ok) {
 		snprintf(buffer, sizeof(buffer), "%s", ZSTR_VAL(callback_name));
 		return buffer;
