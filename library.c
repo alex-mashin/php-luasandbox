@@ -20,8 +20,6 @@
 #include <time.h>
 #endif
 
-static void luasandbox_lib_filter_table(lua_State * L, char ** member_names);
-
 static int luasandbox_base_tostring(lua_State * L);
 static int luasandbox_math_random(lua_State * L);
 static int luasandbox_math_randomseed(lua_State * L);
@@ -53,7 +51,7 @@ void luasandbox_lib_register(lua_State * L)
 	lua_call(L, 0, 0);
 	lua_pushcfunction(L, luaopen_package);
 	lua_call(L, 0, 0);
-	
+
 	// Install our own string library
 	lua_pushcfunction(L, luasandbox_open_string);
 	lua_call(L, 0, 0);
@@ -65,6 +63,12 @@ void luasandbox_lib_register(lua_State * L)
 	lua_setglobal(L, "pcall");
 	lua_pushcfunction(L, luasandbox_base_xpcall);
 	lua_setglobal(L, "xpcall");
+
+	// Remove string.dump: may expose private data
+	lua_getglobal(L, "string");
+	lua_pushnil(L);
+	lua_setfield(L, -2, "dump");
+	lua_pop(L, 1);
 
 	// Install our own versions of math.random and math.randomseed
 	lua_getglobal(L, "math");
@@ -95,22 +99,10 @@ void luasandbox_lib_register(lua_State * L)
 }
 /* }}} */
 
-/** {{{ luasandbox_lib_filter_table
- *
- * Make a copy of the table at the top of the stack, and remove any members
- * from it that aren't in the given whitelist.
- */
-static void luasandbox_lib_filter_table(lua_State * L, char ** member_names)
+/** {{{ luasandbox_lib_destroy_globals */
+void luasandbox_lib_destroy_globals()
 {
-	int i, n;
-	int si = lua_gettop(L);
-	for (n = 0; member_names[n]; n++);
-	lua_createtable(L, 0, n);
-	for (i = 0; member_names[i]; i++) {
-		lua_getfield(L, si, member_names[i]);
-		lua_setfield(L, si+1, member_names[i]);
-	}
-	lua_replace(L, si);
+
 }
 /* }}} */
 

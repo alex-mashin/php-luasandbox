@@ -503,7 +503,6 @@ static int luasandbox_lua_pair_to_array(HashTable *ht, lua_State *L,
 	str = lua_tolstring(L, -1, &length);
 	if ( str == NULL ) {
 		// Only strings and integers may be used as keys
-		zval_ptr_dtor(&value);
 		char *message;
 		spprintf(&message, 0, "Cannot use %s as an array key when passing data from Lua to PHP",
 			lua_typename(L, lua_type(L, -2))
@@ -523,7 +522,6 @@ static int luasandbox_lua_pair_to_array(HashTable *ht, lua_State *L,
 	// Nope, use it as a string
 	if (zend_hash_str_exists(ht, str, length)) {
 		// Collision, probably the key is an integer-like string
-		zval_ptr_dtor(&value);
 		char *message;
 		spprintf(&message, 0, "Collision for array key %s when passing data from Lua to PHP", str );
 		zval_ptr_dtor(&value);
@@ -532,12 +530,12 @@ static int luasandbox_lua_pair_to_array(HashTable *ht, lua_State *L,
 		return 0;
 	}
 	zend_hash_str_update(ht, str, length, valp);
+
 	return 1;
 
 add_int_key:
 	if (zend_hash_index_exists(ht, zn)) {
 		// Collision, probably with a integer-like string
-		zval_ptr_dtor(&value);
 		char *message;
 		spprintf(&message, 0, "Collision for array key %" PRId64 " when passing data from Lua to PHP",
 			(int64_t)zn
@@ -548,6 +546,7 @@ add_int_key:
 		return 0;
 	}
 	zend_hash_index_update(ht, zn, valp);
+
 	return 1;
 }
 /* }}} */
@@ -716,6 +715,7 @@ void luasandbox_push_structured_trace(lua_State * L, int level)
 void luasandbox_throw_runtimeerror(lua_State * L, zval * sandbox_zval, const char *message)
 {
 	zval *zex, *ztrace;
+
 	zval zvex, zvtrace;
 	zex = &zvex;
 	ztrace = &zvtrace;
@@ -727,6 +727,7 @@ void luasandbox_throw_runtimeerror(lua_State * L, zval * sandbox_zval, const cha
 	luasandbox_lua_to_zval(ztrace, L, -1, sandbox_zval, NULL);
 	luasandbox_update_property(luasandboxruntimeerror_ce, zex, "luaTrace", sizeof("luaTrace")-1, ztrace);
 	zval_ptr_dtor(&zvtrace);
+
 	lua_pop(L, 1);
 
 	luasandbox_update_property_string(luasandboxruntimeerror_ce, zex,
@@ -748,9 +749,7 @@ static inline int luasandbox_protect_recursion(zval * z, HashTable ** recursionG
 		*allocated = 1;
 		ALLOC_HASHTABLE(*recursionGuard);
 		zend_hash_init(*recursionGuard, 1, NULL, NULL, 0);
-	} else if (
-		zend_hash_str_exists(*recursionGuard, (char*)&z, sizeof(void*))
-	) {
+	} else if (zend_hash_str_exists(*recursionGuard, (char*)&z, sizeof(void*))) {
 		php_error_docref(NULL, E_WARNING, "Cannot pass circular reference to Lua");
 		return 0;
 	}

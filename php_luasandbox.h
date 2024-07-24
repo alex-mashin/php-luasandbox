@@ -1,3 +1,4 @@
+
 #ifndef PHP_LUASANDBOX_H
 #define PHP_LUASANDBOX_H
 
@@ -40,6 +41,8 @@ censor (_G, {\n\
 })"
 
 /* alloc.c */
+
+
 lua_State * luasandbox_alloc_new_state(php_luasandbox_alloc * alloc, php_luasandbox_obj * sandbox);
 void luasandbox_alloc_delete_state(php_luasandbox_alloc * alloc, lua_State * L);
 
@@ -82,14 +85,11 @@ PHP_METHOD(LuaSandbox, pauseUsageTimer);
 PHP_METHOD(LuaSandbox, unpauseUsageTimer);
 PHP_METHOD(LuaSandbox, enableProfiler);
 PHP_METHOD(LuaSandbox, disableProfiler);
-#ifdef HHVM
-PHP_METHOD(LuaSandbox, _internal_getProfilerFunctionReport);
-#else
 PHP_METHOD(LuaSandbox, getProfilerFunctionReport);
-#endif
 PHP_METHOD(LuaSandbox, callFunction);
 PHP_METHOD(LuaSandbox, wrapPhpFunction);
 PHP_METHOD(LuaSandbox, registerLibrary);
+
 PHP_METHOD(LuaSandboxFunction, __construct);
 PHP_METHOD(LuaSandboxFunction, call);
 PHP_METHOD(LuaSandboxFunction, dump);

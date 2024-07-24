@@ -6,18 +6,21 @@
 #ifndef LUASANDBOX_NO_CLOCK
 #include <semaphore.h>
 #endif
+
 #ifdef LUASANDBOX_NO_CLOCK
 
 typedef struct {
 	// structs must have at least one member
 	int unused;
 } luasandbox_timer;
+
 typedef struct {
 	struct timespec profiler_period;
 	HashTable * function_counts;
 	long total_count;
 	int is_paused;
 } luasandbox_timer_set;
+
 #else /*LUASANDBOX_NO_CLOCK*/
 
 struct _php_luasandbox_obj;
