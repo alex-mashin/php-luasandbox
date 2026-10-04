@@ -41,3 +41,8 @@ docbook/entities.*.xml
 
 # Override the "configure*" rule above
 !docbook/configure.xml
+.opencode
+node_modules
+.npm
+.omo
+.bun
