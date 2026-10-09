@@ -33,10 +33,10 @@ local function censor (filtered, filter)\n\
 	end\n\
 end\n\
 censor (_G, {\n\
-	_G = true, _VERSION = true,	print = true, assert = true, error = true, getfenv = true, setfenv = true, pcall = true, xpcall = true,\n\
+	_G = true, _VERSION = true,	print = true, assert = true, error = true, pcall = true, xpcall = true,\n\
 	ipairs = true, next = true, pairs = true, select = true, unpack = true,\n\
 	getmetatable = true, setmetatable = true, rawequal = true, rawget = true , rawset = true,\n\
-	type = true, tonumber = true, tostring = true,	table = true, math = true,\n\
+	type = true, tonumber = true, tostring = true,	table = true, math = true, bit32 = true, utf8 = true,\n\
 	os = {date = true, difftime = true, time = true, clock = true}, debug = {traceback = true}, string = {['*'] = true, dump = false}\n\
 })"
 

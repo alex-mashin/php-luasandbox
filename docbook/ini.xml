@@ -32,10 +32,10 @@
 	end
 end
 censor (_G, {
-	_G = true, _VERSION = true,	print = true, assert = true, error = true, getfenv = true, setfenv = true, pcall = true, xpcall = true,
+	_G = true, _VERSION = true,	print = true, assert = true, error = true, pcall = true, xpcall = true,
 	ipairs = true, next = true, pairs = true, select = true, unpack = true,
 	getmetatable = true, setmetatable = true, rawequal = true, rawget = true , rawset = true,
-	type = true, tonumber = true, tostring = true,	table = true, math = true,
+	type = true, tonumber = true, tostring = true,	table = true, math = true, bit32 = true, utf8 = true,
 	os = {date = true, difftime = true, time = true, clock = true}, debug = {traceback = true}, string = {['*'] = true, dump = false}
 })"
 "</entry>
@@ -60,12 +60,12 @@ censor (_G, {
 					as well as fields of global tables. Also, additional libraries can be required.
 					Globals allowed by default are <literal>_G</literal>, <literal>_VERSION</literal>,
 					<literal>print</literal>, <literal>assert</literal>, <literal>error</literal>,
-					<literal>getfenv</literal>, <literal>setfenv</literal>, <literal>pcall</literal>, <literal>xpcall</literal>,
+					<literal>pcall</literal>, <literal>xpcall</literal>,
 					<literal>ipairs</literal>, <literal>next</literal>, <literal>pairs</literal>, <literal>select</literal>,
 					<literal>unpack</literal>, <literal>getmetatable</literal>, <literal>setmetatable</literal>,
 					<literal>rawequal</literal>, <literal>rawget</literal>, <literal>rawset</literal>,
 					<literal>type</literal>, <literal>tonumber</literal>, <literal>tostring</literal>,
-					<literal>table</literal>, <literal>math</literal>,
+					<literal>table</literal>, <literal>math</literal>, <literal>bit32</literal>, <literal>utf8</literal>,
 					<literal>os</literal> (only <literal>date</literal>, <literal>difftime</literal>, <literal>time</literal> and <literal>clock</literal>),
 					<literal>debug</literal> (only <literal>traceback</literal>)
 					and <literal>string</literal> (all but <literal>dump</literal>).
