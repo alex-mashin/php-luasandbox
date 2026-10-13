@@ -16,6 +16,7 @@
 #include <lualib.h>
 #include <signal.h>
 
+#include "luasandbox_lua_compat.h"
 #include "luasandbox_types.h"
 #include "luasandbox_timer.h"
 

@@ -574,6 +574,7 @@ struct luasandbox_load_helper_params {
 	char *code;
 	char *chunkName;
 	str_param_len_t codeLength;
+	int binary;
 };
 
 static int luasandbox_load_helper_protected(lua_State* L) {
@@ -582,7 +583,7 @@ static int luasandbox_load_helper_protected(lua_State* L) {
 	zval *return_value = p->return_value;
 
 	// Parse the string into a function on the stack
-	status = luaL_loadbuffer(L, p->code, p->codeLength, p->chunkName);
+	status = luasandbox_luaL_loadbuffer(L, p->code, p->codeLength, p->chunkName, p->binary);
 
 	// Handle any error from luaL_loadbuffer
 	if (status != 0) {
@@ -655,6 +656,7 @@ static void luasandbox_load_helper(int binary, INTERNAL_FUNCTION_PARAMETERS)
 
 	p.zthis = getThis();
 	p.return_value = return_value;
+	p.binary = binary;
 	status = lua_cpcall(L, luasandbox_load_helper_protected, &p);
 
 	// If the timers were paused before, re-pause them now
@@ -1176,7 +1178,8 @@ static int LuaSandbox_callFunction_protected(lua_State* L) {
 	zval *return_value = p->return_value;
 
 	// Find the function
-	if (!luasandbox_find_field(L, LUA_GLOBALSINDEX, p->name, p->nameLength)) {
+	luasandbox_pushglobaltable(L);
+	if (!luasandbox_find_field(L, -1, p->name, p->nameLength)) {
 		php_error_docref(NULL, E_WARNING,
 			"The specified lua function does not exist");
 		RETVAL_FALSE;
@@ -1184,6 +1187,7 @@ static int LuaSandbox_callFunction_protected(lua_State* L) {
 		// Call it
 		luasandbox_call_helper(L, p->zthis, p->sandbox, p->args, p->numArgs, return_value);
 	}
+	lua_pop(L, 1);
 
 	return 0;
 }
@@ -1648,9 +1652,11 @@ static int LuaSandbox_registerLibrary_protected(lua_State* L) {
 
 	// Determine if the library exists already
 	// Make a copy of the library name on the stack for rawset later
+	luasandbox_pushglobaltable(L);
+	int global_index = lua_gettop(L);
 	lua_pushlstring(L, p->libname, p->libname_len);
 	lua_pushvalue(L, -1);
-	lua_rawget(L, LUA_GLOBALSINDEX);
+	lua_rawget(L, global_index);
 	if (lua_type(L, -1) == LUA_TNIL) {
 		// Remove the nil
 		lua_pop(L, 1);
@@ -1681,7 +1687,8 @@ static int LuaSandbox_registerLibrary_protected(lua_State* L) {
 
 	// Move the new table to the global namespace
 	// The key is on the stack already
-	lua_rawset(L, LUA_GLOBALSINDEX);
+	lua_rawset(L, global_index);
+	lua_pop(L, 1);
 
 	return 0;
 }
@@ -1881,7 +1888,7 @@ static int LuaSandboxFunction_dump_protected(lua_State* L) {
 	smart_str buf = {0};
 
 	luasandbox_function_push(p->func, L);
-	lua_dump(L, luasandbox_dump_writer, (void*)&buf);
+	luasandbox_lua_dump(L, luasandbox_dump_writer, (void*)&buf);
 	smart_str_0(&buf);
 	if (buf.s) {
 		RETVAL_STR(buf.s);

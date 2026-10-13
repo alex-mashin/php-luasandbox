@@ -33,6 +33,9 @@ config.sub
 *.lo
 *.la
 
+# Per-combination build/test logs from scripts/test_all_combinations.sh
+/scripts/builds/
+
 # Doxygen output
 /doc/
 

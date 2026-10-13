@@ -20,7 +20,7 @@ $tests = array(
 	'Argument check error' => 'string.byte()',
 	'Infinite recursion' => 'function foo() foo() end foo()',
 	'Infinite loop (timeout)' => 'while true do end',
-	'Out of memory' => 'string.rep("x", 1000000)'
+	'Out of memory' => 'local t = {} for i = 1, 100000 do t[i] = i end'
 );
 
 foreach ( $tests as $desc => $code ) {
