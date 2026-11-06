@@ -84,7 +84,7 @@ static luasandbox_timer * luasandbox_timer_lookup(int id);
 static void luasandbox_timer_free(luasandbox_timer *lt);
 static void luasandbox_timer_timeout_hook(lua_State *L, lua_Debug *ar);
 static void luasandbox_timer_profiler_hook(lua_State *L, lua_Debug *ar);
-static void luasandbox_timer_set_one_time(luasandbox_timer * lt, struct timespec * ts);
+static int luasandbox_timer_set_one_time(luasandbox_timer * lt, struct timespec * ts);
 static void luasandbox_timer_set_periodic(luasandbox_timer * lt, struct timespec * period);
 static void luasandbox_timer_stop_one(luasandbox_timer * lt, struct timespec * remaining);
 static void luasandbox_update_usage(luasandbox_timer_set * lts);
@@ -225,10 +225,8 @@ void luasandbox_timer_timeout_error(lua_State *L)
 	lua_error(L);
 }
 
-static char * luasandbox_timer_get_cfunction_name(lua_State *L)
+static char * luasandbox_timer_get_cfunction_name(lua_State *L, char *buffer, size_t size)
 {
-	static char buffer[1024];
-
 	lua_CFunction f = lua_tocfunction(L, -1);
 	if (!f) {
 		return NULL;
@@ -241,21 +239,30 @@ static char * luasandbox_timer_get_cfunction_name(lua_State *L)
 
 	zval * callback_p = (zval*)lua_touserdata(L, -1);
 	if (!callback_p) {
+		lua_pop(L, 1);
 		return NULL;
 	}
-	zend_string * callback_name;
+	zend_string * callback_name = NULL;
 	zend_bool ok = zend_is_callable(callback_p, 0, &callback_name);
+	lua_pop(L, 1);
 
 	if (ok) {
-		snprintf(buffer, sizeof(buffer), "%s", ZSTR_VAL(callback_name));
+		snprintf(buffer, size, "%s", ZSTR_VAL(callback_name));
+		zend_string_release(callback_name);
 		return buffer;
 	} else {
+		if (callback_name) {
+			zend_string_release(callback_name);
+		}
 		return NULL;
 	}
 }
 
 static void luasandbox_timer_profiler_hook(lua_State *L, lua_Debug *ar)
 {
+	int stack_top;
+	char name_buf[1024];
+
 	lua_sethook(L, luasandbox_timer_profiler_hook, 0, 0);
 
 	php_luasandbox_obj * sandbox = luasandbox_get_php_obj(L);
@@ -267,10 +274,16 @@ static void luasandbox_timer_profiler_hook(lua_State *L, lua_Debug *ar)
 	long signal_count = sandbox->timer.profiler_signal_count;
 	sandbox->timer.profiler_signal_count -= signal_count;
 
+	// lua_getinfo(..., "f") pushes the current function on to the stack, and
+	// luasandbox_timer_get_cfunction_name() may push the function's upvalue.
+	// Restore the original stack depth before returning, otherwise long-running
+	// profiled code can exhaust the Lua stack.
+	stack_top = lua_gettop(L);
+
 	lua_getinfo(L, "Snlf", ar);
 	const char * name = NULL;
 	if (ar->what[0] == 'C') {
-		name = luasandbox_timer_get_cfunction_name(L);
+		name = luasandbox_timer_get_cfunction_name(L, name_buf, sizeof(name_buf));
 	}
 	if (!name) {
 		if (ar->namewhat[0] != '\0') {
@@ -316,6 +329,10 @@ static void luasandbox_timer_profiler_hook(lua_State *L, lua_Debug *ar)
 		zend_hash_add(ht, zstr, &v);
 	}
 	zend_string_release(zstr);
+
+	// Remove the values pushed by lua_getinfo() and
+	// luasandbox_timer_get_cfunction_name()
+	lua_settop(L, stack_top);
 
 	lts->total_count += signal_count;
 }
@@ -438,12 +455,20 @@ int luasandbox_timer_start(luasandbox_timer_set * lts)
 		luasandbox_timer * timer = luasandbox_timer_create_one(
 			lts->sandbox, LUASANDBOX_TIMER_LIMITER);
 		if (!timer) {
+			lts->is_running = 0;
 			lts->limiter_running = 0;
 			return 0;
 		}
 		lts->limiter_timer = timer;
 		lts->limiter_running = 1;
-		luasandbox_timer_set_one_time(timer, &lts->limiter_remaining);
+		if (!luasandbox_timer_set_one_time(timer, &lts->limiter_remaining)) {
+			// The timer could not be armed: report failure so the caller can
+			// refuse to run untrusted code without a limiter
+			luasandbox_timer_stop_one(timer, NULL);
+			lts->is_running = 0;
+			lts->limiter_running = 0;
+			return 0;
+		}
 	} else {
 		lts->limiter_running = 0;
 	}
@@ -492,9 +517,10 @@ static luasandbox_timer * luasandbox_timer_create_one(
 
 
 /**
- * Set an interval timer.
+ * Set an interval timer. Returns 1 on success, 0 if the timer could not be
+ * armed.
  */
-static void luasandbox_timer_set_one_time(luasandbox_timer * lt, struct timespec * ts)
+static int luasandbox_timer_set_one_time(luasandbox_timer * lt, struct timespec * ts)
 {
 	struct itimerspec its;
 	luasandbox_timer_zero(&its.it_interval);
@@ -503,7 +529,12 @@ static void luasandbox_timer_set_one_time(luasandbox_timer * lt, struct timespec
 		// Sanity check: make sure there is at least 1 nanosecond on the timer.
 		its.it_value.tv_nsec = 1;
 	}
-	timer_settime(lt->timer, 0, &its, NULL);
+	if (timer_settime(lt->timer, 0, &its, NULL) != SUCCESS) {
+		php_error_docref(NULL, E_WARNING,
+			"timer_settime(): %s", strerror(errno));
+		return 0;
+	}
+	return 1;
 }
 
 /**
@@ -577,9 +608,14 @@ static void luasandbox_timer_stop_one(luasandbox_timer * lt, struct timespec * r
 			break;
 		}
 		if (errno != EINTR) {
+			// sem_wait() failed unexpectedly: the event handler may still be
+			// running with lt in its local scope, so free()ing it here would
+			// be a use-after-free. Leak instead (bounded and near-unreachable
+			// in practice) — matches the comment above.
 			php_error_docref(NULL, E_WARNING,
-				"sem_wait(): %s", strerror(errno));
-			break;
+				"sem_wait(): %s; leaking timer to avoid a use-after-free",
+				strerror(errno));
+			return;
 		}
 	}
 	if (timer_delete(lt->timer) != SUCCESS) {
@@ -589,9 +625,15 @@ static void luasandbox_timer_stop_one(luasandbox_timer * lt, struct timespec * r
 	luasandbox_timer_free(lt);
 }
 
-static inline int hash_for_id(int id)
+// The multiply must be unsigned: timer ids grow unboundedly (wrapping to 1
+// when negative), and signed overflow in the id * constant product would be
+// undefined behavior. Converting to unsigned makes wrap-around well-defined,
+// and the wider off_t result keeps the modulo in timer_hash_insert(),
+// luasandbox_timer_lookup() and luasandbox_timer_free() free of any
+// sign-extension surprises.
+static inline off_t hash_for_id(int id)
 {
-	return id * 131071;
+	return (off_t)(unsigned int)id * 131071;
 }
 
 // Don't call this directly, use luasandbox_timer_alloc()

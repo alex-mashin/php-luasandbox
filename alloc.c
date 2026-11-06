@@ -47,7 +47,8 @@ static inline int luasandbox_update_memory_accounting(php_luasandbox_alloc * all
 	}
 
 	if (osize > nsize && alloc->memory_usage + nsize < osize) {
-		// Negative memory usage -- do not update
+		// Would underflow -- clamp usage to zero
+		alloc->memory_usage = 0;
 		return 1;
 	}
 
@@ -62,10 +63,19 @@ static inline int luasandbox_update_memory_accounting(php_luasandbox_alloc * all
 /** {{{ luasandbox_update_gc_pause
  * Scale the GC pause size so that collection will start before an OOM occurs (T349462)
  */
-static inline void luasandbox_update_gc_pause(lua_State * L, php_luasandbox_alloc * alloc)
+static inline void luasandbox_update_gc_pause(php_luasandbox_obj * obj)
 {
-	size_t limit = alloc->memory_limit;
-	size_t usage = alloc->memory_usage;
+	lua_State * L = obj->state;
+
+	// During lua_newstate(), obj->state is still NULL. That is safe only
+	// because the memory limit is (size_t)-1 until construction finishes;
+	// skip GC tuning in that situation regardless of the limit value.
+	if (L == NULL) {
+		return;
+	}
+
+	size_t limit = obj->alloc.memory_limit;
+	size_t usage = obj->alloc.memory_usage;
 
 	// Guard against overflow and division by zero
 	if (limit >= SIZE_MAX / 90 || usage == 0) {
@@ -95,7 +105,7 @@ static void *luasandbox_php_alloc(void *ud, void *ptr, size_t osize, size_t nsiz
 		return NULL;
 	}
 
-	luasandbox_update_gc_pause(obj->state, &obj->alloc);
+	luasandbox_update_gc_pause(obj);
 
 	if (nsize == 0) {
 		if (ptr) {
@@ -107,7 +117,7 @@ static void *luasandbox_php_alloc(void *ud, void *ptr, size_t osize, size_t nsiz
 	} else {
 		nptr = erealloc(ptr, nsize);
 		if (nsize > osize) {
-			memset(nptr + osize, 0, nsize - osize);
+			memset((char *)nptr + osize, 0, nsize - osize);
 		}
 	}
 	obj->in_php --;

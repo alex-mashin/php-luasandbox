@@ -94,10 +94,10 @@ There is no dedicated linter or formatter configured in this repo (no ESLint/PHP
 
 The PHP directive `luasandbox.ini_script` (scope `PHP_INI_SYSTEM`) sets the Lua script run every time a state is created. It ships and can curate a **default allowlist** via a `censor()` helper that removes any global not explicitly allowed; this governs which globals/library functions untrusted code sees at runtime.
 
-- Default behavior: all globals except an explicit allowlist are removed — e.g. `debug.getinfo` is censored (`nil`) while the allowed `debug.traceback` stays (see `lua_sandbox.ini`, default block, and docbook `docbook/lua_sandbox/ini.xml`). Prove it with `tests/ini_script-default.phpt`.
-- Customizing: set `lua_sandbox,ini_script = "..."` in php.ini. The whole value must be double-quoted; inner literal quotes are escaped as `\"`. Inside, you may filter globals or `require` additional libraries (see the example at the top of `lua_sandb ox.ini`).
+- Default behavior: all globals except an explicit allowlist are removed — e.g. `debug.getinfo` is censored (`nil`) while the allowed `debug.traceback` stays (see `luasandbox.ini`, default block, and docbook `docbook/luasandbox/ini.xml`). Prove it with `tests/ini_script-default.phpt`.
+- Customizing: set `luasandbox.ini_script = "..."` in php.ini. The whole value must be double-quoted; inner literal quotes are escaped as `\"`. Inside, you may filter globals or `require` additional libraries (see the example at the top of `luasandbox.ini`).
   - To exercise a custom script from `.phpt`, set it via a test's `--INI--` section. The extension auto-loads under `make test`; run with `make TESTFILES="tests/ini_script-custom.phpt" test`.
-- Environment note: empirically, standard-library globals are re-injected after the ini script runs on this build, so custom allowlists cannot disable standard library functions — use the directive to *enable* additional libraries / grant access rather than remove stdlib (`tests/ini_script-custom.phpt`).
+- Ordering: the standard library is registered *before* the ini script runs (`luasandbox.c:419` vs `:437`), so a custom script can censor or replace stdlib globals too — nothing is re-injected afterwards. `tests/ini_script-custom.phpt` runs `_VERSION=nil` and proves the script executes (`return _VERSION` → `NULL`) while the state stays usable.
 ## Backported `table.move` (Lua 5.1–5.4)
 
 - Exposed unconditionally in lib registration for every supported Lua version via forward decls (`lua.sandbox_table_move`, `lua.sandbox_table_move_key`) and an install block: `lua_pushcfunction(L, lua.sandbox_table_move); lua_setfield(L, -2, "move")`. The source-size bound from upstream commit `38e5324` is applied through a shimmed `LUASANDBOX_TABLE_MOVE_SMALL_RANGE 10`; the self-contained fallback also covers strict-<5.3 Lua headers that omit `LUA_MAXINTEGER`. See library.c:39-43, :96-100 and :409+.
@@ -111,4 +111,21 @@ The PHP directive `luasandbox.ini_script` (scope `PHP_INI_SYSTEM`) sets the Lua 
 - PHP stubs / type info: `stubs/`.
 - Tests: `tests/*.phpt`.
 - Multi-version script: `scripts/test_all_combinations.sh` discovers installed PHP runtimes and Lua modules, then builds + runs every combination via `make test`, logging each to `scripts/builds/`; use `DRY_RUN=1 bash scripts/test_all_combinations.sh` to only list discovered versions. See "Building & testing across PHP × Lua versions" below.
-- Upstream: this is a fork of [wikimedia/mediawiki-php-lukasandbox](https://github.com/wikimedia/mediawiki-php-luasandbox). The `table.move` backport (commit `38e5324`) originates there; see the "Backported table.move" section.
+- Upstream: this is a fork of [wikimedia/mediawiki-php-luasandbox](https://github.com/wikimedia/mediawiki-php-luasandbox). The `table.move` backport (commit `38e5324`) originates there; see the "Backported table.move" section.
+
+## Known issues
+
+Known defects found during the static review (full details with line references in `REVIEW.md`):
+
+- ~~**`wrapPhpFunction` missing return**~~ **FIXED**: `RETURN_FALSE;` now returns on arg-parse failure (`luasandbox.c`), instead of calling `lua_cpcall` with an uninitialized zval (UB/crash on PHP 7.2–7.4).
+- ~~**`active_count` accounting drifts**~~ **FIXED**: counter now balanced (incremented in `luasandbox_new` only); the duplicate increment in `luasandbox_newstate` was removed; ini-script failure at state creation now raises a catchable E_WARNING with the Lua error message instead of an uncatchable `E_ERROR` via `luasandbox_panic()`.
+- ~~**Profiler hook leaks Lua stack slots**~~ **FIXED**: the hook snapshots/restores `lua_gettop` around its work and `luasandbox_timer_get_cfunction_name` uses a caller-owned stack buffer (ZTS-safe) and pops the upvalue on every path.
+- ~~**Fail-open CPU limit**~~ **FIXED**: `luasandbox_call_lua` now fails closed when a CPU limit is set — throws `LuaSandboxTimeoutError` ("Unable to start limit timer") rather than running unbounded; `timer_settime()` failures during arming are detected and treated as timer-start failure.
+- ~~**Timer internals**~~ **FIXED**: `hash_for_id` now uses unsigned arithmetic (no signed-overflow UB for large timer ids); `luasandbox_timer_stop_one` no longer frees the timer when `sem_wait` fails with non-`EINTR` — it leaks it instead (bounded, near-unreachable) to avoid a use-after-free with a live `SIGEV_THREAD` handler.
+- ~~**Allocator hidden coupling**~~ **FIXED**: `luasandbox_update_gc_pause` explicitly skips when `obj->state == NULL` (construction window), underflow clamps `memory_usage` to 0, and `memset` no longer uses `void*` arithmetic.
+- ~~**Cross-sandbox function hazard**~~ **FIXED (guard)**: pushing a `LuaSandboxFunction` into a different sandbox now raises E_WARNING "Unable to pass a LuaSandboxFunction to a different sandbox" instead of silently resolving the wrong/nil function; full cross-sandbox transfer remains unsupported.
+- ~~**Deterministic `math.random`**~~ **INTENTIONAL (upstream parity)**: fresh sandboxes share seed 0 until `math.randomseed()` is called, so untrusted code sees an identical sequence per process — verified identical to upstream wikimedia/mediawiki-php-luasandbox and left unchanged for reproducibility.
+
+Test-suite gaps (add `.phpt` if behavior changes are made): `active_count` accounting (no PHP-visible consumer exists yet, so a test is only meaningful after exposing the counter).
+
+Covered by tests added in this pass: `tests/wrapphpfunction-noargs.phpt` (F1 regression), `tests/cross-sandbox-function.phpt` (F7b guard), `tests/ini_script-custom.phpt` (was a silent no-op due to a directive-name typo), `tests/ini_script-broken.phpt` (F2: broken ini_script now raises a catchable E_WARNING and the state stays usable).

@@ -108,6 +108,17 @@ int luasandbox_push_zval(lua_State * L, zval * z, HashTable * recursionGuard)
 
 				func_obj = GET_LUASANDBOXFUNCTION_OBJ(z);
 
+				// The chunk index is resolved in the destination state's
+				// registry, so a function from a different sandbox would
+				// silently resolve to the wrong (or no) function.
+				if (!LUASANDBOXFUNCTION_SANDBOX_IS_OK(func_obj) ||
+					GET_LUASANDBOX_OBJ(&func_obj->sandbox) != luasandbox_get_php_obj(L))
+				{
+					php_error_docref(NULL, E_WARNING,
+						"Unable to pass a LuaSandboxFunction to a different sandbox");
+					return 0;
+				}
+
 				lua_getfield(L, LUA_REGISTRYINDEX, "php_luasandbox_chunks");
 				lua_rawgeti(L, -1, func_obj->index);
 				lua_remove(L, -2);

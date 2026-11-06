@@ -433,12 +433,16 @@ static lua_State * luasandbox_newstate(php_luasandbox_obj * intern)
 	if (LUASANDBOX_G(ini_script)) {
 		char * ini_script = ZSTR_VAL(LUASANDBOX_G(ini_script));
 		size_t ini_length = ZSTR_LEN(LUASANDBOX_G(ini_script));
-		if (ini_script && ini_length > 0) {
+		if (ini_length > 0) {
 			int status = luaL_dostring(L, ini_script);
-			if (status == 0) {
-				LUASANDBOX_G(active_count)++;
-			} else {
-				luasandbox_panic(L);
+			if (status != 0) {
+				// A broken ini_script must not abort the request (this used to
+				// call luasandbox_panic(), an uncatchable E_ERROR). The state
+				// stays usable: the standard libraries are already registered.
+				const char * msg = lua_tostring(L, -1);
+				php_error_docref(NULL, E_WARNING, "luasandbox.ini_script failed: %s",
+					msg ? msg : "(unknown error)");
+				lua_pop(L, 1);
 			}
 		}
 	}
@@ -1275,7 +1279,7 @@ PHP_METHOD(LuaSandbox, wrapPhpFunction)
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z",
 		&p.z) == FAILURE)
 	{
-		RETVAL_FALSE;
+		RETURN_FALSE;
 	}
 
 	p.return_value = return_value;
@@ -1436,6 +1440,11 @@ int luasandbox_call_lua(php_luasandbox_obj * sandbox, zval * sandbox_zval,
 		}
 		if (luasandbox_timer_start(&sandbox->timer)) {
 			timer_started = 1;
+		} else if (sandbox->is_cpu_limited) {
+			// Fail closed: never run untrusted code without the limit timer
+			zend_throw_exception(luasandboxtimeouterror_ce,
+				"Unable to start limit timer", LUA_ERRRUN);
+			return 0;
 		} else {
 			php_error_docref(NULL, E_WARNING,
 				"Unable to start limit timer");
