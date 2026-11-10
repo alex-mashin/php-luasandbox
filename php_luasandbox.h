@@ -22,6 +22,10 @@
 
 #define PHP_LUASANDBOX_INI_INI_SCRIPT "luasandbox.ini_script"
 #define PHP_LUASANDBOX_INI_INI_SCRIPT_DEFAULT "\n\
+-- Remove the module loader first: untrusted code must never see it,\n\
+-- even if the allowlist below is ever edited incorrectly.\n\
+require, package = nil, nil\n\
+\n\
 local function censor (filtered, filter)\n\
 	local all_allowed = filter['*']\n\
 	for field in pairs (filtered) do\n\

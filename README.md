@@ -10,7 +10,7 @@ What's new:
    `luasandbox_lua_compat.h`, bridges the API differences). `bit32` is
    registered on Lua 5.2/5.3 (where it is native); `math.pow` and
    `math.log10` are available on all supported versions.
- - Added `luasandbox.ini_script` (scope `PHP_INI_SYSTEM`) directive to define a Lua script run every time a state is created; in that script available globals can be filtered, as well as additional libraries `require`'d via its `censor()` helper (see AGENTS.md).
+ - Added `luasandbox.ini_script` (scope `PHP_INI_SYSTEM`) directive to define a Lua script run every time a state is created; in that script available globals can be filtered and additional libraries loaded with `require()` (the `package` library is registered for the script and censored again before untrusted code runs; see AGENTS.md).
  - Backported `table.move` for Lua 5.1-5.4: exposed unconditionally at registration with the source-size bound from upstream commit 38e5324. Unlike native Lua >=5.4 it returns a copy of the moved values rather than an integer index, so read results positionally from `call()`; see tests/table-move.phpt.
 
 ## Requirements

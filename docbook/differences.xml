@@ -18,7 +18,7 @@
     </listitem>
     <listitem>
      <para>
-      The <literal>package</literal> package, including <literal>require()</literal> and <literal>module()</literal>, as it depends heavily on direct filesystem access. A pure-Lua rewrite such as that used in the MediaWiki Scribunto extension may be used instead.
+      The <literal>package</literal> library is registered only for the use of <literal>luasandbox.ini_script</literal>, which may <literal>require()</literal> additional libraries (such as <literal>lpeg</literal> or <literal>lrexlib</literal>) before untrusted code runs. The default ini script removes <literal>require</literal>, <literal>package</literal> and <literal>module()</literal> (the latter only exists on Lua 5.1/5.2) from untrusted code, because they allow loading arbitrary modules from the filesystem.
      </para>
     </listitem>
     <listitem>

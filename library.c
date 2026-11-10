@@ -50,6 +50,22 @@ void luasandbox_lib_register(lua_State * L)
 	luasandbox_luaL_requiref(L, LUA_MATHLIBNAME, luaopen_math);
 	luasandbox_luaL_requiref(L, LUA_DBLIBNAME, luaopen_debug);
 	luasandbox_luaL_requiref(L, LUA_OSLIBNAME, luaopen_os);
+	// package provides require(), which luasandbox.ini_script uses to load
+	// additional libraries (lpeg, lrexlib, ...). Commit 0cdc58f (the Lua
+	// 5.1-5.4 compatibility port) accidentally dropped it, breaking ini
+	// scripts that call require(). It is for trusted ini-script use only:
+	// the ini script is expected to censor the require global and the
+	// package table before untrusted code runs, as the default script does
+	// not allowlist them (and untrusted code must never be able to extend
+	// package.path/cpath).
+	luasandbox_luaL_requiref(L, LUA_LOADLIBNAME, luaopen_package);
+#if LUA_VERSION_NUM >= 502
+	// Since Lua 5.2 coroutine lives in its own library and is no longer
+	// registered as a side effect of luaopen_base; register it explicitly.
+	// It is removed again by the default ini script censor; a custom script
+	// may allowlist it (traditio.wiki does).
+	luasandbox_luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine);
+#endif
 #if LUA_VERSION_NUM >= 502 && LUA_VERSION_NUM < 504
 	// bit32 ships with Lua 5.2 and 5.3 only; luaL_openlibs() would normally
 	// register it via luaopen_bit32, which we bypass above.

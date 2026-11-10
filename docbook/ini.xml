@@ -20,7 +20,11 @@
 			<tbody>
 				<row>
 					<entry><link linkend="ini.luasandbox.ini_script">luasandbox.ini_script</link></entry>
-						<entry>"local function censor (filtered, filter)
+						<entry>"-- Remove the module loader first: untrusted code must never see it,
+-- even if the allowlist below is ever edited incorrectly.
+require, package = nil, nil
+
+local function censor (filtered, filter)
 	local all_allowed = filter['*']
 	for field in pairs (filtered) do
 		local allowed = filter [field]
@@ -38,7 +42,7 @@ censor (_G, {
 	type = true, tonumber = true, tostring = true,	table = true, math = true, bit32 = true, utf8 = true,
 	os = {date = true, difftime = true, time = true, clock = true}, debug = {traceback = true}, string = {['*'] = true, dump = false}
 })"
-"</entry>
+					</entry>
 					<entry>PHP_INI_SYSTEM</entry>
 					<entry>Since 3.1.0-traditio</entry>
 				</row>
@@ -56,8 +60,14 @@ censor (_G, {
 			</term>
 			<listitem>
 				<para>
-					<literal>luasandbox.ini_script</literal> can be used to selecively enable and disable Lua globals,
-					as well as fields of global tables. Also, additional libraries can be required.
+					<literal>luasandbox.ini_script</literal> can be used to selectively enable and disable Lua globals,
+					as well as fields of global tables. Also, additional libraries can be loaded by the script itself
+					with <literal>require()</literal>: the extension registers the <literal>package</literal> library
+					before the script runs, and the script may <literal>require()</literal> modules such as
+					<literal>lpeg</literal> or <literal>lrexlib</literal>. The default script removes
+					<literal>require</literal> and <literal>package</literal> together with the other disallowed
+					globals; keeping them available to untrusted code is a security risk, since
+					<literal>require()</literal> loads arbitrary modules from the filesystem.
 					Globals allowed by default are <literal>_G</literal>, <literal>_VERSION</literal>,
 					<literal>print</literal>, <literal>assert</literal>, <literal>error</literal>,
 					<literal>pcall</literal>, <literal>xpcall</literal>,
